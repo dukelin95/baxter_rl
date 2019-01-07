@@ -1,9 +1,14 @@
 import gym
+from gym import spaces
 import rospy
 import docker
-import baxter_interface
+try:
+    import baxter_interface
+except ImportError:
+    print("Source the baxter_interface code for communicating with the Baxter")
 from baxter_interface import CHECK_VERSION
 from baxter_core_msgs.msg import AssemblyState
+import numpy as np
 
 import time
 import os
@@ -11,13 +16,16 @@ import sys
 import subprocess
 
 
-class baxter_base(gym.Env):
+class baxter_base(gym.GoalEnv):
     """
     The super class for the Baxter gym environment
     This code is a variation of the code in https://github.com/erlerobot/gym-gazebo
     """
     def __init__(self):
         # TODO: Separate roscore initialization for launching multiple instances
+        # Maybe we can use the following code:
+        # tmp = os.popen("ps -af").read()
+        # tmp.count("roscore")
         self.port = os.environ.get("ROS_PORT_SIM", "11311")
         ros_path = os.path.dirname(subprocess.check_output(["which", "roscore"]))
 
@@ -28,7 +36,7 @@ class baxter_base(gym.Env):
 
         # Initialize and run the docker
         client = docker.from_env()
-        ROS_MASTER_URI="http://100.80.231.101:11311"
+        ROS_MASTER_URI="http://100.80.227.174:11311"
         self.cont1=client.containers.run("rosbaxter:2", # Name of the container
                               detach=True, # Detach the container
                               environment={"ROS_MASTER_URI":ROS_MASTER_URI}, # Assign ROS MASTER Node
@@ -41,6 +49,7 @@ class baxter_base(gym.Env):
         state_topic='robot/state'
         rospy.Subscriber(state_topic, AssemblyState, self.state_callback)
         check = lambda : self.baxter_state is None
+
         # Wait for Baxter to spawn
         print("Waiting for Baxter to spawn")
         while check():
@@ -48,6 +57,20 @@ class baxter_base(gym.Env):
         print("Baxter is loaded")
 
         self.enable_baxter()
+
+        self.metadata ={
+            'render.modes': ['human']
+        }
+
+        # Environment attributes
+        self._set_goal()
+        obs = self._get_obs()
+        self.action_space = spaces.Box(-1., 1., shape=(7,), dtype='float32')
+        self.observation_space = spaces.Dict(dict(
+            desired_goal=spaces.Box(-np.inf, np.inf, shape=obs['achieved_goal'].shape, dtype='float32'),
+            achieved_goal=spaces.Box(-np.inf, np.inf, shape=obs['achieved_goal'].shape, dtype='float32'),
+            observation=spaces.Box(-np.inf, np.inf, shape=obs['observation'].shape, dtype='float32'),
+        ))
 
 
     def state_callback(self,msg):
@@ -82,17 +105,23 @@ class baxter_base(gym.Env):
         obs.extend(self.get_xyz(self.limbR.endpoint_effort()['force']))
         obs.extend(self.get_xyz(self.limbR.endpoint_effort()['torque']))
 
-        return obs
+        return np.asarray(obs)
 
 
     def step(self,action):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def render(self):
-        raise NotImplementedError
+        raise NotImplementedError()
 
     def _close(self):
-        raise NotImplementedError
+        raise NotImplementedError()
+
+    def _get_obs(self):
+        raise NotImplementedError()
+
+    def _set_goal():
+        raise NotImplementedError()
 
     def close(self):
         self._close()
@@ -107,3 +136,4 @@ class baxter_base(gym.Env):
 
     def _render(self):
         raise NotImplementedError
+    

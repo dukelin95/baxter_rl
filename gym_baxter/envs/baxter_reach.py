@@ -2,6 +2,7 @@ import rospy
 import rospkg
 import baxter_interface
 from baxter_interface import CHECK_VERSION
+import os
 
 import numpy as np
 import time
@@ -29,15 +30,15 @@ from gazebo_msgs.srv import (
 )
 
 # Baxter environment base class
-from core import baxter_base
+from gym_baxter.envs.core import baxter_base
 
 
-class baxterReach(baxter_base):
+class BaxterReachEnv(baxter_base):
     """
     A Baxter class for the reach task, similar to the one to Fetch environments in OpenAI Gym
     """
 
-    def __init__(self, reward_mode='sparse'):
+    def __init__(self, reward_type='sparse'):
         super().__init__()
         # Get initial robot endeffector position
 
@@ -46,9 +47,10 @@ class baxterReach(baxter_base):
         self.initial_ef_ori = self.limbR.endpoint_pose()['orientation']
         self.thresh = 0.001
 
-        self.reward_mode = reward_mode
+        self.reward_type = reward_type
         self._set_goal()
         self.load_marker()
+        self.model_path= os.path.join(os.path.dirname(__file__),'assets')
 
         # Simulation time
         self.step_size = 0.002
@@ -65,7 +67,7 @@ class baxterReach(baxter_base):
             z=self.goal[2]
         ))
         marker_xml = ''
-        with open("unit_box_0/model.sdf") as marker_file:
+        with open(os.path.join(os.path.dirname(__file__),'assets',"unit_box_0/model.sdf")) as marker_file:
             marker_xml = marker_file.read().replace('\n','')
 
             # Load the marker
@@ -82,14 +84,28 @@ class baxterReach(baxter_base):
 
     def _set_goal(self):
         # Set a goal point
-        self.goal = self.initial_ef_pos + np.random.uniform(-0.5,0.5,size=3)
+        x = np.random.uniform(0.7,1,1)
+        y = np.random.uniform(-0.5,-0.07,1)
+        z = np.random.uniform(0.00,0.065,1)
+        self.goal = np.squeeze([x,y,z])
+        # self.goal = self.initial_ef_pos + np.random.uniform(-0.5,0.5,size=3)
 
-    def _get_reward(self, achieved_goal):
-        d = np.linalg.norm(self.goal-achieved_goal)
-        if self.reward_mode == 'sparse':
-            return (d>self.thresh)*-1
+    def _get_obs(self):
+        obs = self._get_robot_obs()
+        achieved_goal = np.asarray(self.get_xyz(self.limbR.endpoint_pose()['position']))
+        desired_goal = self.goal
+        return {
+            'observation':obs,
+            'achieved_goal':achieved_goal,
+            'desired_goal':desired_goal
+        }
+
+    def compute_reward(self, achieved_goal,goal,info):
+        d = np.linalg.norm(self.goal-achieved_goal,axis=-1)
+        if self.reward_type == 'sparse':
+            return -(d>self.thresh).astype(np.float32)
         else:
-            return d
+            return -d
 
     def _terminate(self,achieved_goal):
         d = np.linalg.norm(self.goal-achieved_goal)
@@ -107,11 +123,10 @@ class baxterReach(baxter_base):
         # Stop simulation
         self.pause()
         # Collect state and terminal information
-        temp = self.limbR.endpoint_pose()['position']
-        achieved_goal = [temp.x, temp.y, temp.z]
-        obs = self._get_robot_obs()
-        reward = self._get_reward(achieved_goal)
-        done = self._terminate(achieved_goal) # get the endeffector point
+        obs = self._get_obs()
+        info = {}
+        reward = self.compute_reward(obs['achieved_goal'],obs['desired_goal'],info)
+        done = self._terminate(obs['achieved_goal']) # get the endeffector point
         return obs,reward,done,{}
 
     def reset(self):
@@ -121,6 +136,8 @@ class baxterReach(baxter_base):
         self._set_goal()
         self.load_marker()
         self.pause()
+
+        return self._get_obs()
 
     def _close(self):
         self.unpause()

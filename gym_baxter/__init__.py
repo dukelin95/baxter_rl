@@ -1,6 +1,15 @@
 from gym.envs.registration import register
 
+
+for reward_type in ['sparse', 'dense']:
+    suffix = 'Dense' if reward_type == 'dense' else ''
+    kwargs = {
+        'reward_type': reward_type,
+}
+
 register(
-    id='baxter-reach-v0',
-    entry_point='gym_baxter.envs:baxter_fetch'
+    id='BaxterReach-v0',
+    entry_point='gym_baxter.envs:BaxterReachEnv',
+    max_episode_steps=50,
+    kwargs=kwargs,
     )
