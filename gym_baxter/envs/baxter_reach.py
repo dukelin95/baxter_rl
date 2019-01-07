@@ -112,7 +112,11 @@ class BaxterReachEnv(baxter_base):
         return d<self.thresh
 
     def step(self,action):
-        assert len(action)==7
+        assert len(action)==4
+        action = np.asarray([action[0],action[1],0.0,action[2],0.0,action[3],0.0])
+
+        #Scale the action
+        action = action*np.asarray([2,2,2,2,4,4,4])
         done = False
         action = dict(zip(self.limbR.joint_names(),action))
         # Start simulation
