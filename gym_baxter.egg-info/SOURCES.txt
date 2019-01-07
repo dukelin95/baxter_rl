@@ -1,0 +1,6 @@
+setup.py
+gym_baxter.egg-info/PKG-INFO
+gym_baxter.egg-info/SOURCES.txt
+gym_baxter.egg-info/dependency_links.txt
+gym_baxter.egg-info/requires.txt
+gym_baxter.egg-info/top_level.txt
