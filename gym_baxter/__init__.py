@@ -10,6 +10,6 @@ for reward_type in ['sparse', 'dense']:
 register(
     id='BaxterReach-v0',
     entry_point='gym_baxter.envs:BaxterReachEnv',
-    max_episode_steps=50,
+    max_episode_steps=200,
     kwargs=kwargs,
     )

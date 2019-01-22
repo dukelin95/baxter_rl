@@ -45,7 +45,7 @@ class BaxterReachEnv(baxter_base):
         temp = self.limbR.endpoint_pose()['position']
         self.initial_ef_pos = [temp.x, temp.y, temp.z]
         self.initial_ef_ori = self.limbR.endpoint_pose()['orientation']
-        self.thresh = 0.001
+        self.thresh = 0.05
 
         self.reward_type = reward_type
         self._set_goal()
@@ -54,7 +54,7 @@ class BaxterReachEnv(baxter_base):
 
         # Simulation time
         self.step_size = 0.002
-        self.num_step = 10
+        self.num_step = 5
         self.pause = rospy.ServiceProxy('gazebo/pause_physics', Empty)
         self.unpause = rospy.ServiceProxy('gazebo/unpause_physics', Empty)
         self.pause()
@@ -84,9 +84,11 @@ class BaxterReachEnv(baxter_base):
 
     def _set_goal(self):
         # Set a goal point
-        x = np.random.uniform(0.7,1,1)
-        y = np.random.uniform(-0.5,-0.07,1)
-        z = np.random.uniform(0.00,0.065,1)
+        # x = np.random.uniform(0.8,0.6,1)
+        # y = np.random.uniform(-0.9,-0.8,1)
+        # z = np.random.uniform(0.00,0.065,1)
+        # z = np.asarray([0.056])
+        x,y,z = [0.7,-0.9,0.056]
         self.goal = np.squeeze([x,y,z])
         # self.goal = self.initial_ef_pos + np.random.uniform(-0.5,0.5,size=3)
 
@@ -111,6 +113,11 @@ class BaxterReachEnv(baxter_base):
         d = np.linalg.norm(self.goal-achieved_goal)
         return d<self.thresh
 
+    def _is_success(self,achieved_goal):
+        d = np.linalg.norm(self.goal-achieved_goal,axis=-1)
+        #return (d<self.thresh).astype(np.float32)
+        return d
+
     def step(self,action):
         assert len(action)==4
         action = np.asarray([action[0],action[1],0.0,action[2],0.0,action[3],0.0])
@@ -121,20 +128,25 @@ class BaxterReachEnv(baxter_base):
         action = dict(zip(self.limbR.joint_names(),action))
         # Start simulation
         self.unpause()
-        for _ in range(self.num_step):
-            self.limbR.set_joint_velocities(action)
+        # for _ in range(self.num_step):
+        self.limbR.set_joint_velocities(action)
+        time.sleep(self.num_step*self.step_size)
 
         # Stop simulation
         self.pause()
         # Collect state and terminal information
         obs = self._get_obs()
-        info = {}
+        info = {
+            'is_success':self._is_success(obs['achieved_goal']),
+        }
         reward = self.compute_reward(obs['achieved_goal'],obs['desired_goal'],info)
-        done = self._terminate(obs['achieved_goal']) # get the endeffector point
-        return obs,reward,done,{}
+        done = False#self._terminate(obs['achieved_goal']) # get the endeffector point
+        return obs,reward,done,info
 
     def reset(self):
         self.unpause()
+        # Uncomment the following if training on the real robot
+        # self.limbR.exit_control_mode()
         self.delete_marker()
         self.limbR.move_to_neutral()
         self._set_goal()

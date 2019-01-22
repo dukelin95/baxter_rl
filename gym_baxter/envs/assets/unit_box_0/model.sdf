@@ -6,7 +6,7 @@
       <visual name='visual'>
         <geometry>
           <sphere>
-            <radius>0.02</radius>
+            <radius>0.04</radius>
           </sphere>
         </geometry>
         <material>

@@ -36,13 +36,30 @@ class baxter_base(gym.GoalEnv):
 
         # Initialize and run the docker
         client = docker.from_env()
-        ROS_MASTER_URI="http://100.80.227.174:11311"
+        
+        ROS_MASTER_URI="http://100.80.230.29:11311"
+
+
         self.cont1=client.containers.run("rosbaxter:2", # Name of the container
                               detach=True, # Detach the container
                               environment={"ROS_MASTER_URI":ROS_MASTER_URI}, # Assign ROS MASTER Node
                               publish_all_ports=True # Exposing all ports for communications
         )
-
+        """
+        self.cont1 = client.containers.run(
+            "rosbaxter_view",
+            detach=True,
+            environment = {
+                "DISPLAY":os.environ.get("DISPLAY"),
+                "QT_X11_NO_MITSHM":1,
+                "XAUTHORITY":os.environ.get("XAUTH"),
+                "ROS_MASTER_URI":ROS_MASTER_URI
+            },
+            volumes={"/tmp/.X11-unix":{"bind":"/tmp/.X11-unix","mode":"rw"}},
+            publish_all_ports=True,
+            runtime="nvidia"
+        )
+        """
         rospy.init_node("BaxterControl",anonymous=True)
 
         self.baxter_state = None
