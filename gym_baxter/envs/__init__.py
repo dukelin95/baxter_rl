@@ -7,8 +7,6 @@ import time
 
 # Check to see if roscore is already running, if not then spin-up roscore
 
-
-
 # Flag to see if roscore is running
 roscore_running = False
 try:

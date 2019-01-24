@@ -3,6 +3,7 @@ import rospkg
 import baxter_interface
 from baxter_interface import CHECK_VERSION
 import os
+from gym import spaces
 
 import numpy as np
 import time
@@ -47,10 +48,23 @@ class BaxterReachEnv(baxter_base):
         self.initial_ef_ori = self.limbR.endpoint_pose()['orientation']
         self.thresh = 0.05
 
+        self.model_path= os.path.join(os.path.dirname(__file__),'assets')
         self.reward_type = reward_type
         self._set_goal()
         self.load_marker()
-        self.model_path= os.path.join(os.path.dirname(__file__),'assets')
+
+        end_effector_point= np.asarray(self.get_xyz(self.limbR.endpoint_pose()['position']))
+        self.initial_goal_dis = np.linalg.norm(self.goal-end_effector_point)
+
+        # Environment attributes
+        self._set_goal()
+        obs = self._get_obs()
+        self.action_space = spaces.Box(-1., 1., shape=(4,), dtype='float32')
+        self.observation_space = spaces.Dict(dict(
+            desired_goal=spaces.Box(-np.inf, np.inf, shape=obs['achieved_goal'].shape, dtype='float32'),
+            achieved_goal=spaces.Box(-np.inf, np.inf, shape=obs['achieved_goal'].shape, dtype='float32'),
+            observation=spaces.Box(-np.inf, np.inf, shape=obs['observation'].shape, dtype='float32'),
+        ))
 
         # Simulation time
         self.step_size = 0.002
@@ -67,7 +81,7 @@ class BaxterReachEnv(baxter_base):
             z=self.goal[2]
         ))
         marker_xml = ''
-        with open(os.path.join(os.path.dirname(__file__),'assets',"unit_box_0/model.sdf")) as marker_file:
+        with open(os.path.join(self.model_path,"unit_box_0/model.sdf")) as marker_file:
             marker_xml = marker_file.read().replace('\n','')
 
             # Load the marker
@@ -88,12 +102,14 @@ class BaxterReachEnv(baxter_base):
         # y = np.random.uniform(-0.9,-0.8,1)
         # z = np.random.uniform(0.00,0.065,1)
         # z = np.asarray([0.056])
-        x,y,z = [0.7,-0.9,0.056]
+        x,y,z = [0.8,-0.7,0.056]
         self.goal = np.squeeze([x,y,z])
         # self.goal = self.initial_ef_pos + np.random.uniform(-0.5,0.5,size=3)
 
     def _get_obs(self):
         obs = self._get_robot_obs()
+        # Normalize with respect to goal position
+        obs[-3:]=obs[-3:]/self.initial_goal_dis
         achieved_goal = np.asarray(self.get_xyz(self.limbR.endpoint_pose()['position']))
         desired_goal = self.goal
         return {
@@ -107,7 +123,8 @@ class BaxterReachEnv(baxter_base):
         if self.reward_type == 'sparse':
             return -(d>self.thresh).astype(np.float32)
         else:
-            return -d
+            #Scale the reward with respect to initial goal position
+            return -(d/self.initial_goal_dis)
 
     def _terminate(self,achieved_goal):
         d = np.linalg.norm(self.goal-achieved_goal)
@@ -140,6 +157,8 @@ class BaxterReachEnv(baxter_base):
             'is_success':self._is_success(obs['achieved_goal']),
         }
         reward = self.compute_reward(obs['achieved_goal'],obs['desired_goal'],info)
+        # Augment the reward to penalize for fast actions
+        reward = reward-np.linalg.norm(obs['observation'][7:14])
         done = False#self._terminate(obs['achieved_goal']) # get the endeffector point
         return obs,reward,done,info
 

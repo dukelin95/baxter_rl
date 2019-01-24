@@ -22,26 +22,15 @@ class baxter_base(gym.GoalEnv):
     This code is a variation of the code in https://github.com/erlerobot/gym-gazebo
     """
     def __init__(self):
-        # TODO: Separate roscore initialization for launching multiple instances
-        # Maybe we can use the following code:
-        # tmp = os.popen("ps -af").read()
-        # tmp.count("roscore")
-        #self.port = os.environ.get("ROS_PORT_SIM", "11311")
-        # ros_path = os.path.dirname(subprocess.check_output(["which", "roscore"]))
-
-        # # start roscore with python2 instead of python3
-        # self._roscore = subprocess.Popen(['/usr/bin/python', os.path.join(ros_path, b"roscore"), "-p", self.port])
-        # time.sleep(2)
-        #print ("Roscore launched!")
-
         # Initialize and run the docker
         client = docker.from_env()
         ROS_MASTER_URI="http://100.80.230.29:11311"
 
-        """
+
         self.cont1=client.containers.run("rosbaxter:2", # Name of the container
                               detach=True, # Detach the container
                               environment={"ROS_MASTER_URI":ROS_MASTER_URI}, # Assign ROS MASTER Node
+                              volumes = {"/tmp/.gazebo/":{"bind":"/root/.gazebo/","mode":"rw"}},
                               publish_all_ports=True # Exposing all ports for communications
         )
         """
@@ -54,11 +43,11 @@ class baxter_base(gym.GoalEnv):
                 "XAUTHORITY":os.environ.get("XAUTH"),
                 "ROS_MASTER_URI":ROS_MASTER_URI
             },
-            volumes={"/tmp/.X11-unix":{"bind":"/tmp/.X11-unix","mode":"rw"}},
+            volumes={"/tmp/.X11-unix":{"bind":"/tmp/.X11-unix","mode":"rw"},"/tmp/.gazebo/":{"bind":"/root/.gazebo/","mode":"rw"}},
             publish_all_ports=True,
             runtime="nvidia"
         )
-
+        """
         rospy.init_node("BaxterControl",anonymous=True)
 
         self.baxter_state = None
@@ -84,15 +73,6 @@ class baxter_base(gym.GoalEnv):
         self.speed_lim = [2,2,2,2,4,4,4]
         self.effort_lim = [50,50,50,50,15,15,15]
 
-        # Environment attributes
-        self._set_goal()
-        obs = self._get_obs()
-        self.action_space = spaces.Box(-1., 1., shape=(4,), dtype='float32')
-        self.observation_space = spaces.Dict(dict(
-            desired_goal=spaces.Box(-np.inf, np.inf, shape=obs['achieved_goal'].shape, dtype='float32'),
-            achieved_goal=spaces.Box(-np.inf, np.inf, shape=obs['achieved_goal'].shape, dtype='float32'),
-            observation=spaces.Box(-np.inf, np.inf, shape=obs['observation'].shape, dtype='float32'),
-        ))
 
 
     def state_callback(self,msg):
@@ -152,9 +132,8 @@ class baxter_base(gym.GoalEnv):
         self.rs.disable()
 
         # Shut down the docker
-        self.cont1.stop(2)
+        self.cont1.stop()
 
 
     def _render(self):
         raise NotImplementedError
-    
