@@ -26,20 +26,19 @@ class baxter_base(gym.GoalEnv):
         # Maybe we can use the following code:
         # tmp = os.popen("ps -af").read()
         # tmp.count("roscore")
-        self.port = os.environ.get("ROS_PORT_SIM", "11311")
-        ros_path = os.path.dirname(subprocess.check_output(["which", "roscore"]))
+        #self.port = os.environ.get("ROS_PORT_SIM", "11311")
+        # ros_path = os.path.dirname(subprocess.check_output(["which", "roscore"]))
 
-        # start roscore with python2 instead of python3
-        self._roscore = subprocess.Popen(['/usr/bin/python', os.path.join(ros_path, b"roscore"), "-p", self.port])
-        time.sleep(2)
-        print ("Roscore launched!")
+        # # start roscore with python2 instead of python3
+        # self._roscore = subprocess.Popen(['/usr/bin/python', os.path.join(ros_path, b"roscore"), "-p", self.port])
+        # time.sleep(2)
+        #print ("Roscore launched!")
 
         # Initialize and run the docker
         client = docker.from_env()
-        
         ROS_MASTER_URI="http://100.80.230.29:11311"
 
-
+        """
         self.cont1=client.containers.run("rosbaxter:2", # Name of the container
                               detach=True, # Detach the container
                               environment={"ROS_MASTER_URI":ROS_MASTER_URI}, # Assign ROS MASTER Node
@@ -59,7 +58,7 @@ class baxter_base(gym.GoalEnv):
             publish_all_ports=True,
             runtime="nvidia"
         )
-        """
+
         rospy.init_node("BaxterControl",anonymous=True)
 
         self.baxter_state = None
@@ -78,6 +77,12 @@ class baxter_base(gym.GoalEnv):
         self.metadata ={
             'render.modes': ['human']
         }
+
+        #Joint angles and joint velocity limits for normalization
+        self.joint_min = [-1.7016,-2.147,-3.0541,-0.05,-3.059,-1.5707,-3.059]
+        self.joint_max = [1.7016,1.047,3.0541,2.618,3.059,2.094,3.059]
+        self.speed_lim = [2,2,2,2,4,4,4]
+        self.effort_lim = [50,50,50,50,15,15,15]
 
         # Environment attributes
         self._set_goal()
@@ -110,17 +115,18 @@ class baxter_base(gym.GoalEnv):
     get_xyz = lambda self,X:[X.x,X.y,X.z]
     # A function to convert Quaternion to list
     get_xyzw = lambda self,X:[X.x,X.y,X.z,X.w]
-
+    # A lambda function for normalization
+    norm_val = lambda self,X,x_min,x_max:(X-x_min)*2/(x_max-x_min)-1
     def _get_robot_obs(self):
-        obs = [self.limbR.joint_angle(joint) for joint in self.jointsR]
-        obs.extend([self.limbR.joint_velocity(joint) for joint in self.jointsR])
-        obs.extend([self.limbR.joint_effort(joint) for joint in self.jointsR])
+        obs = [self.norm_val(self.limbR.joint_angle(joint),self.joint_min[i],self.joint_max[i]) for i,joint in enumerate(self.jointsR)]
+        obs.extend([self.limbR.joint_velocity(joint)/self.speed_lim[i] for i,joint in enumerate(self.jointsR)])
+        obs.extend([self.limbR.joint_effort(joint)/self.effort_lim[i] for i,joint in enumerate(self.jointsR)])
         obs.extend(self.get_xyz(self.limbR.endpoint_pose()['position']))
-        obs.extend(self.get_xyzw(self.limbR.endpoint_pose()['orientation']))
-        obs.extend(self.get_xyz(self.limbR.endpoint_velocity()['linear']))
-        obs.extend(self.get_xyz(self.limbR.endpoint_velocity()['angular']))
-        obs.extend(self.get_xyz(self.limbR.endpoint_effort()['force']))
-        obs.extend(self.get_xyz(self.limbR.endpoint_effort()['torque']))
+        # obs.extend(self.get_xyzw(self.limbR.endpoint_pose()['orientation']))
+        # obs.extend(self.get_xyz(self.limbR.endpoint_velocity()['linear']))
+        # obs.extend(self.get_xyz(self.limbR.endpoint_velocity()['angular']))
+        # obs.extend(self.get_xyz(self.limbR.endpoint_effort()['force']))
+        # obs.extend(self.get_xyz(self.limbR.endpoint_effort()['torque']))
 
         return np.asarray(obs)
 
@@ -146,10 +152,8 @@ class baxter_base(gym.GoalEnv):
         self.rs.disable()
 
         # Shut down the docker
-        self.cont1.stop()
+        self.cont1.stop(2)
 
-        # Kill roscore
-        self._roscore.terminate()
 
     def _render(self):
         raise NotImplementedError
