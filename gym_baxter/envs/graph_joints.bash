@@ -1,0 +1,1 @@
+rqt_plot /robot/right_joint_velocity_controller/joints/right_s0_controller/state/command /robot/right_joint_velocity_controller/joints/right_s1_controller/state/command /robot/right_joint_velocity_controller/joints/right_e1_controller/state/command /robot/right_joint_velocity_controller/joints/right_w1_controller/state/command
