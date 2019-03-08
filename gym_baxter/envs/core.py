@@ -97,7 +97,7 @@ class baxter_base(gym.GoalEnv):
     get_xyzw = lambda self,X:[X.x,X.y,X.z,X.w]
     # A lambda function for normalization
     norm_val = lambda self,X,x_min,x_max:(X-x_min)*2/(x_max-x_min)-1
-    def _get_robot_obs(self):
+    def get_robot_obs(self):
         obs = [self.norm_val(self.limbR.joint_angle(joint),self.joint_min[i],self.joint_max[i]) for i,joint in enumerate(self.jointsR)]
         obs.extend([self.limbR.joint_velocity(joint)/self.speed_lim[i] for i,joint in enumerate(self.jointsR)])
         obs.extend([self.limbR.joint_effort(joint)/self.effort_lim[i] for i,joint in enumerate(self.jointsR)])
@@ -123,7 +123,7 @@ class baxter_base(gym.GoalEnv):
     def _get_obs(self):
         raise NotImplementedError()
 
-    def _set_goal():
+    def _set_goal(self):
         raise NotImplementedError()
 
     def close(self):
